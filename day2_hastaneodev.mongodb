@@ -1,0 +1,91 @@
+// Ödev
+// A1)hastane database, hastalar, doktorlar collections oluştur. 
+// A2)ad,soyad, doktorsa maaş ve uzmanlığı, hastaysa hastalığı gir (çoklu veri girişi ile).
+
+
+//S1) maası sundan büyük olan veya uzmanlığı
+// .......olan doktorları, 
+//S2)maası ........olanları listele,
+//S3)en yüksek 3 ü seç,
+//S4) hastaları alfabetik sırala
+
+use("HASTANE");
+db.dropDatabase();
+
+//A1-->
+use("HASTANE");
+
+use("HASTANE")
+db.createCollection("hastalar");
+
+use("HASTANE")
+db.createCollection("doktorlar");
+
+use("HASTANE")
+db;
+
+//A2--->
+use("HASTANE");
+db.doktorlar.insertMany([
+ {"ad": "Ipek", "soyad": "Bilgin", "bolum": "BasHekim", "maas": 10000},
+ {"ad": "Tahir", "soyad": "Cesur","bolum": "Dahiliye", "maas": 7000},
+ {"ad": "Hakan", "soyad": "Inal", "bolum": "KBB", "maas": 7050},
+ {"ad": "Sedef", "soyad": "Culluhan", "bolum": "Pediatri", "maas": 7000},
+ {"ad": "Basri", "soyad": "Konuskan", "bolum": "Kardiyoloji", "maas": 7250},
+ {"ad": "Merve", "soyad": "Kaplan", "bolum": "Nöroloji", "maas": 7250},
+ {"ad": "Yunus", "soyad": "Guney", "bolum": "Ortopedi", "maas": 7100},
+ {"ad": "Mehmet", "soyad": "Kaya", "bolum": "Dermatoloji", "maas": 7250},
+ {"ad": "Dayanch ", "soyad": "Gurbangeldiyev", "bolum": "Pediatri", "maas": 7000},
+ {"ad": "Mehmet", "soyad": "Ozden","bolum": "Dahiliye", "maas": 7000}
+ ]);
+
+
+use("HASTANE");
+db.hastalar.insertMany([
+    {"hasta": "Buse Bayar" , "teshis" : "guatr"},
+    {"hasta" : "Osman Ozdemir", "teshis": "farenjit"},
+    {"hasta": "Kubra Donmez", "teshis":"bademcik iltihabi"},
+    {"hasta": "Orhan Donmez", "teshis":"kabakulak"},
+    {"hasta": "Yusuf Acar", "teshis":"kalp yetmezliği"},
+    {"hasta": "Emre Derin", "teshis":"alzheimer"},
+    {"hasta": "Tuba DonmezYatar", "teshis":"menenjit"}, 
+    {"hasta": "Merve Tekcan", "teshis":"romatizma"},
+    {"hasta": "Orhan Donmez",  "teshis":"sigil"}    
+ ]);
+
+use("HASTANE")
+db.hastalar.insertOne({"hasta": "Ahmet Kaya", "teshis":"akdeniz anemisi"});
+
+//S1)->maası 7150 den büyük olan veya uzmanlığı dahiliye olan doktorları listeleyiniz
+use("HASTANE")
+db.doktorlar.find({$or:[{bolum:"Dahiliye"},{maas:{$gt:7150}}]});
+
+
+//S1)->uzmanlığı pediatri olan ve maası 7000 den kucukesit olan  doktorları,_id siz  listeleyiniz
+use("HASTANE")
+db.doktorlar.find( {$or:[{bolum:"Pediatri"},{fiyat:{$lte:7000}}]},{_id:0});
+
+
+//S2) maası 7150 olan dr.ları listele
+use("HASTANE")
+db.doktorlar.find({maas:7050})
+
+//S2) maasi 7050-7250 arasi olan dr. lari bolumsuz ve _id siz listele
+use("HASTANE")
+db.doktorlar.find({$and:[{maas: {$gte:7050}},{maas :{$lte:7250}}]},{_id:0,bolum:0});
+
+//S3)maaasi en yüksek 3 dr u seç
+use("HASTANE")
+db.doktorlar.find().sort({maas:-1}).limit(3);
+
+//S3) maasi  en dusuk olan 5.ve 6. doktoru getir
+use("HASTANE")
+db.doktorlar.find().sort({maas:1}).skip(4).limit(2);
+
+//S4) hastaları adina gore alfabetik sırala
+use("HASTANE")
+db.hastalar.find().sort({hasta:1});
+
+//s4)sadece hastalik vakalarini(teshisleri) alfabetik olarak goster
+use("HASTANE")
+db.hastalar.find({},{_id:0, hasta:0}).sort({teshis:1});

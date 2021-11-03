@@ -1,0 +1,206 @@
+//==================================================================================
+//                                  AGGREGATION
+//==================================================================================
+// 1) Aggregation, dokumanlardaki verilerin islenmesi ve hesaplanan 
+//    sonuclarin donmesini saglayan islemlerdir. 
+
+// 2) Aggregation islemleri, farklı dokumanlardaki degerleri gruplandirabilir.
+
+// 3) Bu gruplanan veriler uzerinde cesitli islemlerin gereceklestirelerek tek 
+//    bir sonuc degerinin donmesi saglanabilir.
+
+//  4) MongoDB, 3 farklı yontem ile aggregation gerceklestirmeye izin verir.
+//     A) aggregation pipeline (toplama boru hattı)
+//     B) map-reduce function (map indirgeme)
+//     C) single-purpose aggregation (tek-amaç toplama)
+
+//  5) Aggregiation, SQL'deki Join islemlerine benzetilebilir. 
+
+//     SQL         MONGO
+//   ----------------------
+//     WHERE       $match
+//     GROUP BY    $group
+//     HAVING	   $match
+//     SELECT	   $project
+//     ORDER BY    $sort
+//     LIMIT	   $limit
+//     SUM()	   $sum
+//     COUNT()	   $count, $sum
+//     JOIN	       $lookup
+//     MERGE 	   $merge (MongoDB 4.2 ve sonrasi)
+//     aggregation (sum,max,avg vs) yaparken bi field (column) kullanacaksak 
+//     syntax ı ==> "$urunAdi" şeklinde
+
+//==================================================================================
+//                        AGGREGATION PIPELINE
+//==================================================================================
+// SYNTAX
+
+//   pipeline = [
+//   { $match : { … },
+//   { $group : { … },
+//   { $sort : { … },
+//      ...
+//   ]
+//   db.collectionName.aggregate(pipeline, options)
+
+//  $match() -- Verileri secerken flitrelemek icin
+//  $group({_id : "$field"}) - islenen verilerin grupplanmasi icin 
+//  $sort()  Sonuclarin siralanmasi icin
+
+
+// 1) "KISILER" veritabaninda "ogrenciler" collection'i tanimlayalim. 
+use("KISILER")
+db.ogrenciler.find()
+db.people.drop();
+db.createCollection("ogrenciler")
+use("kisiler");
+db.createCollection("ogrenciler");
+
+// 2) Asagidaki dokumanlari collection'a kaydedelim...
+db.ogrenciler.insertMany([
+{"isim": "Tarik ", "yas":57, "sube": "A", "not":97, "dersler":["fizik", "mat"]}, 
+{"isim": "Selim", "yas":37, "sube": "A","not":77,},
+{"isim": "Nalan", "yas":17, "sube": "B","not":55, "dersler":["fizik", "ingilizce"]},
+{"isim": "Burhan", "yas":21, "sube": "B","not":43, "dersler":["fizik", "mat"]},
+{"isim": "Niyazi", "yas":40, "sube": "B","not":99, "dersler":["ingilizce"]},
+{"isim": "Galip", "yas":37, "sube": "A","not":34, "dersler":["ingilizce"]},
+{"isim": "Teslime", "yas":24, "sube": "A","not":88, "dersler":["mat","fizik","kimya"]}]);
+
+//3) Dersleri sadece ingilizce olanları ve yası 50 den küçük olan öğrencileri sorgulayınız
+use("KISILER")
+db.ogrenciler.find({  dersler:["ingilizce"],  yas: {$lt:50}} ); // 1. yol
+db.ogrenciler.aggregate( {$match: { dersler:["ingilizce"], yas: {$lt:50}} } ); // 2. yol
+
+//4) B-subesindeki öğrenci sayısını hesaplayan sorguyu yazınız...
+//   Not : Saymak için match metodunun yanında count kullanılabilir syntax ında count ın yanında bilgi girilmesi zorunludur
+use("KISILER")
+db.ogrenciler.aggregate({ $match: {sube:"B"}}, {$count: "B-Subesindeki öğrenci sayısı"});
+
+// 5) Tum subelerdeki toplam ogrenci sayisini hesaplayan sorguyu yaziniz.
+//    count bir grup icin 1 sayisinin donmesini ve bunlarin toplanmasini saglar.
+// count:tek sonuç ,mesela B sınıfındaki.....ler..
+// sum:A daki...ler, B deki...ler birer birer toplanır
+
+// NOT: Group isleminde degiskenlerin onune $ isareti konulmalidir.
+// id den sonra dersler, not vs de olabilir, 
+// Burada şubeye göre grupla=$group:{_id:"$sube"}}
+use("KISILER")
+db.ogrenciler.aggregate({  $group:{ _id: "$sube" , toplamOgrenci:{$sum: 1 } } });
+
+//6) Tüm subelerdeki toplam öğrenci sayılarını ve her subedeki max notu hesaplayan sorguyu yazıyın
+use("KISILER")
+db.ogrenciler.aggregate(  { $group: {_id:"$sube" , toplamOgrenci:{$sum:1}, 
+maksimumNot: {$max: "$not"  }  } } );
+
+//7) Yası 30 dan kucuk olanların subelere göre not ortalamalarını hesaplayan sorguyu yaziniz
+use("KISILER")
+db.ogrenciler.aggregate( [ { $match: {yas: {$lt:30  } } }, 
+{ $group: {_id: "$sube" , ortalamaNot: {$avg: "$not"  }  }  } ]);
+
+//8)  İngilizce dersini alanların subelere göre sayılarını hesaplayan sorguyu yazınız
+use("KISILER")
+db.ogrenciler.aggregate( [{$match:  {dersler :"ingilizce"}}  , 
+{  $group:{ _id:"$sube" ,  ingilizceAlanlarınSayısı: {$sum:1  }  } } ]);
+
+//9) Sadece fizik ve mat derslerini alanların subelere göre sayısını yazınız
+use("KISILER")
+db.ogrenciler.aggregate( [ {$match: {dersler: ["fizik", "mat"  ]}} , 
+{ $group:{ _id:"$sube" ,  fizikVeMatAlanlarınSayısı: {$sum:1  }  }  }  ]);
+
+//10 ) Fizik veya matematik alanların sayısını hesaplayınız...
+// Not ; $in --> 
+use("KISILER")
+db.ogrenciler.aggregate( [ {   $match:{dersler:  {$in: ["fizik", "mat"]  } }} ,    
+{ $group:{ _id:"$sube" ,  fizikVeyaMatAlanlarınSayısı: {$sum:1  }  }  } ] );
+
+//11) A subesindeki öğrencileri yaşa göre azalan sırada, nota göre yükselen sırada sırala...
+use("KISILER")
+db.ogrenciler.aggregate([{$match:{sube:"A"}}, {$sort:{yas:-1,not:1}}]); // 1. yol
+db.ogrenciler.aggregate({$match:{sube:"A"}}).sort({yas:-1,not:1}); // 2. yol
+
+//12) MEDYA veritabanı altında hesaplar ismiyle yeni bir collection olusturunuz...
+//    ve degerleri giriniz.
+use("MEDYA")
+db.hesaplar.insertMany(
+[{"isim" : "Ali", "harcamalar":[-80, -40, -50, -120], "kazanc":[100, 150]},
+{"isim" : "Can", "harcamalar" : [-60, -30, -20], "kazanc" : [200, 50, 130] },
+{"isim" : "Canan", "harcamalar" : [-80, -40, -50], "kazanc" : [300, 450] },
+{"isim" : "Betul", "harcamalar" : [-80, -120], "kazanc" : [500, 50, 70, 10] },
+{"isim" : "Ahsen", "harcamalar" : [-140, -50, -120], "kazanc" : [400] },
+{"isim" : "Su", "harcamalar" : [-120], "kazanc" : [22, 375, 65] },
+{"isim" : "Pelin", "harcamalar" : [-180, -40, -70, -12], "kazanc" : [500, 650, 400]}]); 
+
+//13) Var olan dokumanlarda her kisi icin toplam harcama, toplam kazanc ve  
+// bakiye degerlerini hesaplayarak dokumana ekleyen sorguyu yaziniz.
+// Bakiye'ye gore siralayiniz.
+
+// NOT: Sorguda olmayan bir field icin $addFields metodu kullanilabilir. 
+// project lede yeni field ekleniyor , 
+
+use("MEDYA")
+pipeline=[  {$addFields :{toplamHarcama:  {$sum:"$harcamalar"},  toplamKazanc:{ $sum: "$kazanc"}}},
+{  $addFields :{ bakiye:  { $add:  ["$toplamHarcama", "$toplamKazanc" ] } }},
+{    $project:{  harcamalar:0, kazanc:0, _id:0}}
+]
+db.hesaplar.aggregate(pipeline);
+
+//14) Hesaplar collection'nin muhasabe adinda bir kopyasini olusturalim.
+use("MEDYA")
+db.hesaplar.aggregate( {$project:{_id:0}}, {$merge: { into:"muhasebe"}});
+db.muhasebe.find();
+//id:0 kapatmasaydım eski id lerle kopya oluşturacaktı, şimdi default verecek
+
+//15) Hesaplar collection'nindan harcamalar kismini cikararak kazanclar adinda 
+//     yeni bir kopyasini olusturalim.
+use("MEDYA")
+db.hesaplar.aggregate( {$project:{_id:0,harcamalar:0}}, {$merge: {into:"kazanclar"}});
+
+////==================================================================================
+////                                  BULKWRITE (toplu yazmak)
+////  Birden fazla islemi ayni komutla gerceklestirmek icin BulkWrite kullanilabilir.
+// https://docs.mongodb.com/manual/reference/method/db.collection.bulkWrite/
+// db.collections.bulkWrite([
+//   {insertOne:{"document": {yazar: "........", fiyat:....., yayinYili : ...... }}},
+//   {updateOne:{"filter":{yazar: "......"}, "update": {$set: {fiyat:.......}}}},
+//   {replaceOne:{"filter":{yazar:"......."}, "replacement": {yazar: "......", fiyat:.....}}},
+//   {deleteOne:{"filter" : {yazar: "........."}}}
+//    ]);
+//==================================================================================
+use("MEDYA");
+db.hikayeler.insertMany(
+[{"yazar" : "Mehmet Bak", "fiyat" : 60, "yayinYili" : 1998 },
+{"yazar" : "Ali Gel", "fiyat" : 75, "yayinYili" : 2000 },
+{"yazar" : "Su Ak", "fiyat" : 90, "yayinYili" : 2005 },
+{"yazar" : "İsmet Kaç", "fiyat" : 35, "yayinYili" : 2010 },
+{"yazar" : "Pelin Su", "fiyat" : 80, "yayinYili" : 2020 },
+{"yazar" : "Suat Ok", "fiyat" : 54, "yayinYili" : 2001}]);
+
+use("MEDYA")
+db.hikayeler.bulkWrite([
+{insertOne:{"document": {yazar: "Bahar Koc", fiyat:80, yayinYili :2021}}},
+{updateOne:{"filter":{yazar: "Ali Gel"}, "update": {$set: {fiyat:99}}}},
+{replaceOne:{"filter":{yazar:"Pelin Su"}, "replacement": {yazar: "Erdem Göcen", fiyat:100}}},
+{deleteOne:{"filter" : {yazar: "Mehmet Bak"}}}]);
+
+//16) Fiyati 5000 olan urunleri, urunAdi'na gore siralayarak (A-Z)
+//     listeleyiniz.
+//     extra eleman ekle, fiyatı 5000 olan.
+// 1 : A-Z, -1: Z-A ( ASCII formatina gore siralama yapar)
+db.fiyatlar.find({"fiyat": 5000},{"_id":0}).sort({"urunAdi": 1});
+//soruyu çöz shellde de göster
+//text arama ***********
+db.createCollection("articles");
+db.articles.createIndex( { subject: "text" } )
+db.articles.insert([
+     { _id: 1, subject: "coffee", author: "xyz", views: 50 },
+     { _id: 2, subject: "Coffee Shopping", author: "efg", views: 5 },
+     { _id: 3, subject: "Baking a cake", author: "abc", views: 90  },
+     { _id: 4, subject: "baking", author: "xyz", views: 100 },
+     { _id: 5, subject: "Café Con Leche", author: "abc", views: 200 },
+     { _id: 6, subject: "Сырники", author: "jkl", views: 80 },
+     { _id: 7, subject: "coffee and cream", author: "efg", views: 10 },
+     { _id: 8, subject: "Cafe con Leche", author: "xyz", views: 10 }
+   ]
+);
+db.articles.find( { $text: { $search: "coffee" } } );
